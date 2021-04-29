@@ -1,0 +1,19 @@
+syntax = "proto3";
+option go_package = "./;geecachepb";
+package geecachepb;
+
+message Request {
+  string key = 1;
+  int32 count = 2;
+  int32 startNo = 3;
+  int32 endNo = 4;
+
+}
+
+message Response {
+  bytes value = 1;
+}
+
+service GroupCache {
+  rpc Get(Request) returns (Response);
+}
