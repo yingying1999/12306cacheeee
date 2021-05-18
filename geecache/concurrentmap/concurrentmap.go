@@ -18,13 +18,79 @@ const SHARD_COUNT = 32
 // // Map 分片
 type ConcurrentMap []*ConcurrentMapShared
 
+func NewConcurrentMap() ConcurrentMap {
+	// SHARD_COUNT 默认32个分片
+	m := make(ConcurrentMap, SHARD_COUNT)
+	for i := 0; i < SHARD_COUNT; i++ {
+		m[i] = &ConcurrentMapShared{
+			items: make(map[string]tickets),
+		}
+	}
+	return m
+}
+
 // 每一个Map 是一个加锁的并发安全Map
 type ConcurrentMapShared struct {
 	items        map[string]tickets
 	sync.RWMutex // 各个分片Map各自的锁
 }
+
 type tickets struct {
 	segments [][]uint8
+}
+
+// FNV hash
+func fnv32(key string) uint32 {
+	hash := uint32(2166136261)
+	const prime32 = uint32(16777619)
+	for i := 0; i < len(key); i++ {
+		hash *= prime32
+		hash ^= uint32(key[i])
+	}
+	return hash
+}
+
+func (m ConcurrentMap) GetShard(key string) *ConcurrentMapShared {
+	return m[uint(fnv32(key))%uint(SHARD_COUNT)]
+}
+
+// func (m ConcurrentMap) Set(key string, value tickets) {
+// 	shard := m.GetShard(key) // 段定位找到分片
+// 	shard.Lock()             // 分片上锁
+// 	shard.items[key] = value // 分片操作
+// 	shard.Unlock()           // 分片解锁
+// }
+func (m ConcurrentMap) Get(key string) (tickets, bool) {
+	shard := m.GetShard(key)
+	// shard.RLock()
+	val, ok := shard.items[key]
+	// shard.RUnlock()
+	return val, ok
+}
+func (m ConcurrentMap) Init(key string, tripLen, seats int) {
+	shard := m.GetShard(key) // 段定位找到分片
+	shard.Lock()             // 分片上锁
+	t := tickets{}
+	t.segments = make([][]uint8, tripLen)
+	a := []uint8{255, 255}
+	for i := 0; i < tripLen; i++ {
+		t.segments[i] = a
+	}
+	// fmt.Println(t)
+	shard.items[key] = t // 分片操作
+	shard.Unlock()       // 分片解锁
+}
+func (m ConcurrentMap) Update(key string, count, startNo, EndNo int32) ([]int64, error) {
+	shard := m.GetShard(key) // 段定位找到分片
+	shard.Lock()             // 分片上锁
+	defer shard.Unlock()     // 分片解锁
+	val, ok := shard.items[key]
+	fmt.Print(val)
+	if ok == false {
+		return nil, errors.New("不存在该key，无法更新")
+	} else {
+		return val.Update(count, startNo, EndNo)
+	}
 }
 
 //封装了读后写的逻辑
@@ -91,69 +157,5 @@ func setZero(bytes [][]uint8, validSeatNo int64) {
 	//对每个区间更改
 	for i := 0; i < len(bytes); i++ {
 		bytes[i][index] = bytes[i][index] & ^(128 >> pos)
-	}
-}
-func NewConcurrentMap() ConcurrentMap {
-	// SHARD_COUNT 默认32个分片
-	m := make(ConcurrentMap, SHARD_COUNT)
-	for i := 0; i < SHARD_COUNT; i++ {
-		m[i] = &ConcurrentMapShared{
-			items: make(map[string]tickets),
-		}
-	}
-	return m
-}
-
-func (m ConcurrentMap) GetShard(key string) *ConcurrentMapShared {
-	return m[uint(fnv32(key))%uint(SHARD_COUNT)]
-}
-
-// FNV hash
-func fnv32(key string) uint32 {
-	hash := uint32(2166136261)
-	const prime32 = uint32(16777619)
-	for i := 0; i < len(key); i++ {
-		hash *= prime32
-		hash ^= uint32(key[i])
-	}
-	return hash
-}
-
-// func (m ConcurrentMap) Set(key string, value tickets) {
-// 	shard := m.GetShard(key) // 段定位找到分片
-// 	shard.Lock()             // 分片上锁
-// 	shard.items[key] = value // 分片操作
-// 	shard.Unlock()           // 分片解锁
-// }
-func (m ConcurrentMap) Get(key string) (tickets, bool) {
-	shard := m.GetShard(key)
-	// shard.RLock()
-	val, ok := shard.items[key]
-	// shard.RUnlock()
-	return val, ok
-}
-func (m ConcurrentMap) Init(key string, tripLen, seats int) {
-	shard := m.GetShard(key) // 段定位找到分片
-	shard.Lock()             // 分片上锁
-	t := tickets{}
-	t.segments = make([][]uint8, tripLen)
-	a := []uint8{255, 255}
-	for i := 0; i < tripLen; i++ {
-		t.segments[i] = a
-	}
-	// fmt.Println(t)
-	shard.items[key] = t // 分片操作
-	shard.Unlock()       // 分片解锁
-}
-func (m ConcurrentMap) Update(key string, count, startNo, EndNo int32) ([]int64, error) {
-	shard := m.GetShard(key) // 段定位找到分片
-	shard.Lock()             // 分片上锁
-	defer shard.Unlock()     // 分片解锁
-	val, ok := shard.items[key]
-	fmt.Print(val)
-	if ok == false {
-		return nil, errors.New("不存在该key，无法更新")
-	} else {
-		return val.Update(count, startNo, EndNo)
 	}
 }

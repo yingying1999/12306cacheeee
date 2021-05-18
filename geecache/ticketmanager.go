@@ -12,21 +12,24 @@ import (
 // A Group is a cache namespace and associated data loaded spread over
 type TicketManager struct {
 	concurrentMap concurrentmap.ConcurrentMap
-	peerPicker    PeerPicker
 }
 
+var instance *TicketManager
+
+func GetTicketManager() *TicketManager {
+	if instance == nil {
+		instance = NewTM() // <--- NOT THREAD SAFE
+	}
+	return instance
+}
 func NewTM() *TicketManager {
 	tm := &TicketManager{
 		concurrentMap: concurrentmap.NewConcurrentMap(),
 	}
 	return tm
 }
-
-func (tm *TicketManager) SetPeerPicker(peerPicker PeerPicker) {
-	if tm.peerPicker != nil {
-		panic("RegisterPeerPicker called more than once")
-	}
-	tm.peerPicker = peerPicker
+func (tm *TicketManager) GetMap() concurrentmap.ConcurrentMap {
+	return tm.concurrentMap
 }
 
 func (tm *TicketManager) BuyTickets(key, count, startNo, endNo string) ([]byte, error) {
@@ -44,19 +47,6 @@ func (tm *TicketManager) BuyTickets(key, count, startNo, endNo string) ([]byte, 
 		return resBytes, err
 	} else {
 		log.Println("[GeeCache] miss")
-		return tm.RemoteUpdate(key, count, startNo, endNo)
+		return nil, errors.New("miss")
 	}
-}
-
-func (tm *TicketManager) RemoteUpdate(key, count, startNo, endNo string) ([]byte, error) {
-	if tm.peerPicker != nil {
-		if peerUpdater, ok := tm.peerPicker.PickPeer(key); ok {
-			responseObj, err := peerUpdater.Update(key, count, startNo, endNo)
-			if err != nil {
-				return nil, err
-			}
-			return responseObj, nil
-		}
-	}
-	return nil, errors.New("不存在该key")
 }
