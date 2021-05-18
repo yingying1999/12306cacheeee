@@ -34,6 +34,8 @@ func (p *CacheServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(res)
+	//消息队列生产者,消息包括同步库存和生成订单
+
 }
 
 // Log info with server name
