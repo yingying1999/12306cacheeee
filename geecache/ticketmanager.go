@@ -3,7 +3,6 @@ package geecache
 import (
 	"encoding/json"
 	"errors"
-	"geecache/concurrentmap"
 	"log"
 	"strconv"
 )
@@ -11,7 +10,7 @@ import (
 //每个缓存服务器一个ticketmanager
 // A Group is a cache namespace and associated data loaded spread over
 type TicketManager struct {
-	concurrentMap concurrentmap.ConcurrentMap
+	concurrentMap ConcurrentMap
 }
 
 var instance *TicketManager
@@ -24,11 +23,11 @@ func GetTicketManager() *TicketManager {
 }
 func NewTM() *TicketManager {
 	tm := &TicketManager{
-		concurrentMap: concurrentmap.NewConcurrentMap(),
+		concurrentMap: NewConcurrentMap(),
 	}
 	return tm
 }
-func (tm *TicketManager) GetMap() concurrentmap.ConcurrentMap {
+func (tm *TicketManager) GetMap() ConcurrentMap {
 	return tm.concurrentMap
 }
 
